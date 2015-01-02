@@ -1617,7 +1617,7 @@ SPL_METHOD(GlobIterator, count)
 		return;
 	}
 
-	if (intern->u.dir.dirp && php_stream_is(intern->u.dir.dirp ,&php_glob_stream_ops)) {
+	if (php_stream_is(intern->u.dir.dirp ,&php_glob_stream_ops)) {
 		RETURN_LONG(php_glob_stream_get_count(intern->u.dir.dirp, NULL));
 	} else {
 		/* should not happen */
@@ -2098,7 +2098,7 @@ static int spl_filesystem_file_call(spl_filesystem_object *intern, zend_function
 	zend_fcall_info fci;
 	zend_fcall_info_cache fcic;
 	zval z_fname;
-	zval * zresource_ptr = &intern->u.file.zresource, *retval = NULL;
+	zval * zresource_ptr = &intern->u.file.zresource, *retval;
 	int result;
 	int num_args = pass_num_args + (arg2 ? 2 : 1);
 
@@ -2132,7 +2132,7 @@ static int spl_filesystem_file_call(spl_filesystem_object *intern, zend_function
 
 	result = zend_call_function(&fci, &fcic TSRMLS_CC);
 	
-	if (result == FAILURE || retval == NULL) {
+	if (result == FAILURE) {
 		RETVAL_FALSE;
 	} else {
 		ZVAL_ZVAL(return_value, retval, 1, 1);
@@ -2265,10 +2265,6 @@ static int spl_filesystem_file_read_line(zval * this_ptr, spl_filesystem_object 
 
 static void spl_filesystem_file_rewind(zval * this_ptr, spl_filesystem_object *intern TSRMLS_DC) /* {{{ */
 {
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
 	if (-1 == php_stream_rewind(intern->u.file.stream)) {
 		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Cannot rewind file %s", intern->file_name);
 	} else {
@@ -2401,11 +2397,6 @@ SPL_METHOD(SplFileObject, eof)
 		return;
 	}
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	RETURN_BOOL(php_stream_eof(intern->u.file.stream));
 } /* }}} */
 
@@ -2422,9 +2413,6 @@ SPL_METHOD(SplFileObject, valid)
 	if (SPL_HAS_FLAG(intern->flags, SPL_FILE_OBJECT_READ_AHEAD)) {
 		RETURN_BOOL(intern->u.file.current_line || intern->u.file.current_zval);
 	} else {
-		if(!intern->u.file.stream) {
-			RETURN_FALSE;
-		}
 		RETVAL_BOOL(!php_stream_eof(intern->u.file.stream));
 	}
 } /* }}} */
@@ -2436,11 +2424,6 @@ SPL_METHOD(SplFileObject, fgets)
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 	
 	if (zend_parse_parameters_none() == FAILURE) {
-		return;
-	}
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
 		return;
 	}
 
@@ -2457,11 +2440,6 @@ SPL_METHOD(SplFileObject, current)
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 	
 	if (zend_parse_parameters_none() == FAILURE) {
-		return;
-	}
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
 		return;
 	}
 
@@ -2607,12 +2585,6 @@ SPL_METHOD(SplFileObject, fgetcsv)
 	int d_len = 0, e_len = 0, esc_len = 0;
 	
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|sss", &delim, &d_len, &enclo, &e_len, &esc, &esc_len) == SUCCESS) {
-
-		if(!intern->u.file.stream) {
-			zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-			return;
-		}
-
 		switch(ZEND_NUM_ARGS())
 		{
 		case 3:
@@ -2754,11 +2726,6 @@ SPL_METHOD(SplFileObject, fflush)
 {
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	RETURN_BOOL(!php_stream_flush(intern->u.file.stream));
 } /* }}} */
 
@@ -2767,14 +2734,7 @@ SPL_METHOD(SplFileObject, fflush)
 SPL_METHOD(SplFileObject, ftell)
 {
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);	
-	long ret;
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
-	ret = php_stream_tell(intern->u.file.stream);
+	long ret = php_stream_tell(intern->u.file.stream);
 
 	if (ret == -1) {
 		RETURN_FALSE;
@@ -2794,11 +2754,6 @@ SPL_METHOD(SplFileObject, fseek)
 		return;
 	}
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	spl_filesystem_file_free_line(intern TSRMLS_CC);
 	RETURN_LONG(php_stream_seek(intern->u.file.stream, pos, whence));
 } /* }}} */
@@ -2810,11 +2765,6 @@ SPL_METHOD(SplFileObject, fgetc)
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 	char buf[2];
 	int result;
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
 
 	spl_filesystem_file_free_line(intern TSRMLS_CC);
 
@@ -2841,11 +2791,6 @@ SPL_METHOD(SplFileObject, fgetss)
 	zval *arg2 = NULL;
 	MAKE_STD_ZVAL(arg2);
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	if (intern->u.file.max_line_len > 0) {
 		ZVAL_LONG(arg2, intern->u.file.max_line_len);
 	} else {
@@ -2866,11 +2811,6 @@ SPL_METHOD(SplFileObject, fpassthru)
 {
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	RETURN_LONG(php_stream_passthru(intern->u.file.stream));
 } /* }}} */
 
@@ -2879,11 +2819,6 @@ SPL_METHOD(SplFileObject, fpassthru)
 SPL_METHOD(SplFileObject, fscanf)
 {
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
 
 	spl_filesystem_file_free_line(intern TSRMLS_CC);
 	intern->u.file.current_line_num++;
@@ -2905,11 +2840,6 @@ SPL_METHOD(SplFileObject, fwrite)
 		return;
 	}
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	if (ZEND_NUM_ARGS() > 1) {
 		str_len = MAX(0, MIN(length, str_len));
 	}
@@ -2926,11 +2856,6 @@ SPL_METHOD(SplFileObject, fread)
 	long length = 0;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &length) == FAILURE) {
-		return;
-	}
-
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
 		return;
 	}
 
@@ -2963,11 +2888,6 @@ SPL_METHOD(SplFileObject, ftruncate)
 		return;
 	}
 
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	if (!php_stream_truncate_supported(intern->u.file.stream)) {
 		zend_throw_exception_ex(spl_ce_LogicException, 0 TSRMLS_CC, "Can't truncate file %s", intern->file_name);
 		RETURN_FALSE;
@@ -2982,20 +2902,15 @@ SPL_METHOD(SplFileObject, seek)
 {
 	spl_filesystem_object *intern = (spl_filesystem_object*)zend_object_store_get_object(getThis() TSRMLS_CC);
 	long line_pos;
-
+	
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &line_pos) == FAILURE) {
 		return;
 	}
-	if(!intern->u.file.stream) {
-		zend_throw_exception_ex(spl_ce_RuntimeException, 0 TSRMLS_CC, "Object not initialized");
-		return;
-	}
-
 	if (line_pos < 0) {
 		zend_throw_exception_ex(spl_ce_LogicException, 0 TSRMLS_CC, "Can't seek file %s to negative line %ld", intern->file_name, line_pos);
 		RETURN_FALSE;		
 	}
-
+	
 	spl_filesystem_file_rewind(getThis(), intern TSRMLS_CC);
 	
 	while(intern->u.file.current_line_num < line_pos) {
@@ -3047,9 +2962,8 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_file_object_fgetss, 0, 0, 0)
 	ZEND_ARG_INFO(0, allowable_tags)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_file_object_fscanf, 0, 0, 1) 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_file_object_fscanf, 1, 0, 1) 
 	ZEND_ARG_INFO(0, format)
-	ZEND_ARG_VARIADIC_INFO(1, vars)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_file_object_fwrite, 0, 0, 1) 

@@ -757,10 +757,22 @@ static int do_fetch_class_prepare(pdo_stmt_t *stmt TSRMLS_DC) /* {{{ */
 		fci->function_name = NULL;
 		fci->symbol_table = NULL;
 		fci->retval_ptr_ptr = &stmt->fetch.cls.retval_ptr;
-		fci->params = NULL;
-		fci->no_separation = 1;
+		if (stmt->fetch.cls.ctor_args) {
+			HashTable *ht = Z_ARRVAL_P(stmt->fetch.cls.ctor_args);
+			Bucket *p;
 
-		zend_fcall_info_args(fci, stmt->fetch.cls.ctor_args TSRMLS_CC);
+			fci->param_count = 0;
+			fci->params = safe_emalloc(sizeof(zval**), ht->nNumOfElements, 0);
+			p = ht->pListHead;
+			while (p != NULL) {
+				fci->params[fci->param_count++] = (zval**)p->pData;
+				p = p->pListNext;
+			}
+		} else {
+			fci->param_count = 0;
+			fci->params = NULL;
+		}
+		fci->no_separation = 1;
 
 		fcc->initialized = 1;
 		fcc->function_handler = ce->constructor;
@@ -2049,7 +2061,7 @@ static PHP_METHOD(PDOStatement, setFetchMode)
 /* }}} */
 
 /* {{{ proto bool PDOStatement::nextRowset()
-   Advances to the next rowset in a multi-rowset statement handle. Returns true if it succeeded, false otherwise */
+   Advances to the next rowset in a multi-rowset statement handle. Returns true if it succeded, false otherwise */
 
 static int pdo_stmt_do_next_rowset(pdo_stmt_t *stmt TSRMLS_DC)
 {

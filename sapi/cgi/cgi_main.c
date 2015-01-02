@@ -508,7 +508,7 @@ static int sapi_cgi_read_post(char *buffer, uint count_bytes TSRMLS_DC)
 	uint read_bytes = 0;
 	int tmp_read_bytes;
 
-	count_bytes = MIN(count_bytes, SG(request_info).content_length - SG(read_post_bytes));
+	count_bytes = MIN(count_bytes, (uint) SG(request_info).content_length - SG(read_post_bytes));
 	while (read_bytes < count_bytes) {
 		tmp_read_bytes = read(STDIN_FILENO, buffer + read_bytes, count_bytes - read_bytes);
 		if (tmp_read_bytes <= 0) {
@@ -524,11 +524,8 @@ static int sapi_fcgi_read_post(char *buffer, uint count_bytes TSRMLS_DC)
 	uint read_bytes = 0;
 	int tmp_read_bytes;
 	fcgi_request *request = (fcgi_request*) SG(server_context);
-	size_t remaining = SG(request_info).content_length - SG(read_post_bytes);
 
-	if (remaining < count_bytes) {
-		count_bytes = remaining;
-	}
+	count_bytes = MIN(count_bytes, (uint) SG(request_info).content_length - SG(read_post_bytes));
 	while (read_bytes < count_bytes) {
 		tmp_read_bytes = fcgi_read(request, buffer + read_bytes, count_bytes - read_bytes);
 		if (tmp_read_bytes <= 0) {
@@ -818,7 +815,7 @@ static void php_cgi_ini_activate_user_config(char *path, int path_len, const cha
 		}
 
 		if (real_path) {
-			efree(real_path);
+			free(real_path);
 		}
 		entry->expires = request_time + PG(user_ini_cache_ttl);
 	}
@@ -1399,7 +1396,7 @@ static void init_request_info(fcgi_request *request TSRMLS_DC)
 				} else {
 					SG(request_info).request_uri = env_script_name;
 				}
-				efree(real_path);
+				free(real_path);
 			}
 		} else {
 			/* pre 4.3 behaviour, shouldn't be used but provides BC */
@@ -1824,7 +1821,7 @@ int main(int argc, char *argv[])
 		unsigned char *p;
 		decoded_query_string = strdup(query_string);
 		php_url_decode(decoded_query_string, strlen(decoded_query_string));
-		for (p = (unsigned char *)decoded_query_string; *p &&  *p <= ' '; p++) {
+		for (p = decoded_query_string; *p &&  *p <= ' '; p++) {
 			/* skip all leading spaces */
 		}
 		if(*p == '-') {
@@ -2273,7 +2270,7 @@ consult the installation file that came with this distribution, or visit \n\
 
 				/* all remaining arguments are part of the query string
 				 * this section of code concatenates all remaining arguments
-				 * into a single string, separating args with a &
+				 * into a single string, seperating args with a &
 				 * this allows command lines like:
 				 *
 				 *  test.php v1=test v2=hello+world!

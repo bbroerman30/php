@@ -850,7 +850,7 @@ $exts_skipped = 0;
 $ignored_by_ext = 0;
 sort($exts_to_test);
 $test_dirs = array();
-$optionals = array('tests', 'ext', 'Zend', 'ZendEngine2', 'sapi/cli', 'sapi/cgi', 'sapi/fpm');
+$optionals = array('tests', 'ext', 'Zend', 'ZendEngine2', 'sapi/cli', 'sapi/cgi');
 
 foreach($optionals as $dir) {
 	if (@filetype($dir) == 'dir') {
@@ -1291,20 +1291,16 @@ TEST $file
 				unset($section_text['FILEEOF']);
 			}
 
-			foreach (array( 'FILE', 'EXPECT', 'EXPECTF', 'EXPECTREGEX' ) as $prefix) {            
-				$key = $prefix . '_EXTERNAL';
+			if (@count($section_text['FILE_EXTERNAL']) == 1) {
+				// don't allow tests to retrieve files from anywhere but this subdirectory
+				$section_text['FILE_EXTERNAL'] = dirname($file) . '/' . trim(str_replace('..', '', $section_text['FILE_EXTERNAL']));
 
-				if (@count($section_text[$key]) == 1) {
-					// don't allow tests to retrieve files from anywhere but this subdirectory
-					$section_text[$key] = dirname($file) . '/' . trim(str_replace('..', '', $section_text[$key]));
-
-					if (file_exists($section_text[$key])) {
-						$section_text[$prefix] = file_get_contents($section_text[$key], FILE_BINARY);
-						unset($section_text[$key]);
-					} else {
-						$bork_info = "could not load --" . $key . "-- " . dirname($file) . '/' . trim($section_text[$key]);
-						$borked = true;
-					}
+				if (file_exists($section_text['FILE_EXTERNAL'])) {
+					$section_text['FILE'] = file_get_contents($section_text['FILE_EXTERNAL'], FILE_BINARY);
+					unset($section_text['FILE_EXTERNAL']);
+				} else {
+					$bork_info = "could not load --FILE_EXTERNAL-- " . dirname($file) . '/' . trim($section_text['FILE_EXTERNAL']);
+					$borked = true;
 				}
 			}
 
