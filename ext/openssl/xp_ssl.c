@@ -40,6 +40,9 @@
 int php_openssl_apply_verification_policy(SSL *ssl, X509 *peer, php_stream *stream TSRMLS_DC);
 SSL *php_SSL_new_from_context(SSL_CTX *ctx, php_stream *stream TSRMLS_DC);
 int php_openssl_get_x509_list_id(void);
+static size_t php_openssl_sockop_io(int read, php_stream *stream, char *buf, size_t count TSRMLS_DC);
+struct timeval subtractTimeval( struct timeval a, struct timeval b );
+int compareTimeval( struct timeval a, struct timeval b );
 
 /* This implementation is very closely tied to the that of the native
  * sockets implemented in the core.
@@ -174,12 +177,12 @@ static int handle_ssl_error(php_stream *stream, int nr_bytes, zend_bool is_init 
 
 static size_t php_openssl_sockop_read(php_stream *stream, char *buf, size_t count TSRMLS_DC)
 {
-	return php_openssl_sockop_io( true, stream, buf, count );
+	return php_openssl_sockop_io( 1, stream, buf, count );
 }
 
 static size_t php_openssl_sockop_write(php_stream *stream, const char *buf, size_t count TSRMLS_DC)
 {
-	return php_openssl_sockop_io( false, stream, buf, count );
+	return php_openssl_sockop_io( 0, stream, buf, count );
 }
 
 /**
@@ -226,10 +229,10 @@ static size_t php_openssl_sockop_io(int read, php_stream *stream, char *buf, siz
 				gettimeofday(&cur_time, NULL);
 
 				/* Determine how much time we've taken so far. */
-				elapsed_time = subtractTimeval( curr_time, start_time );
+				elapsed_time = subtractTimeval( cur_time, start_time );
 
 				/* and return an error if we've taken too long. */
-				if (compareTimeval( elapsed_time, timeout) > 0 ) {
+				if (compareTimeval( elapsed_time, *timeout) > 0 ) {
 					/* If the socket was originally blocking, set it back. */
 					if (blocked) {
 						php_set_sock_blocking(sslsock->s.socket, 1 TSRMLS_CC);
@@ -249,7 +252,7 @@ static size_t php_openssl_sockop_io(int read, php_stream *stream, char *buf, siz
 			/* Now, how much time until we time out? */
 			struct timeval left_time;
 			if (has_timeout) {
-				left_time = subtractTimeval( timeout, elapsed_time );
+				left_time = subtractTimeval( *timeout, elapsed_time );
 			}
 
 			/* If we didn't do anything on the last loop (or an error) check to see if we should retry or exit. */
@@ -333,7 +336,7 @@ static size_t php_openssl_sockop_io(int read, php_stream *stream, char *buf, siz
 
 struct timeval subtractTimeval( struct timeval a, struct timeval b )
 {
-	timeval difference;
+	struct timeval difference;
 
 	difference.tv_sec  = a.tv_sec  - b.tv_sec;
 	difference.tv_usec = a.tv_usec - b.tv_usec;
@@ -609,7 +612,7 @@ static inline int php_openssl_enable_crypto(php_stream *stream,
 				gettimeofday(&cur_time, NULL);
 				elapsed_time = subtractTimeval( cur_time, start_time );
 			
-				if (compareTimeval( elapsed_time, timeout) > 0) {
+				if (compareTimeval( elapsed_time, *timeout) > 0) {
 					php_error_docref(NULL TSRMLS_CC, E_WARNING, "SSL: crypto enabling timeout");
 					return -1;
 				}
@@ -625,7 +628,7 @@ static inline int php_openssl_enable_crypto(php_stream *stream,
 					struct timeval left_time;
 					
 					if (has_timeout) {
-						left_time = subtractTimeval( timeout, elapsed_time );
+						left_time = subtractTimeval( *timeout, elapsed_time );
 					}
 					php_pollfd_for(sslsock->s.socket, (err == SSL_ERROR_WANT_READ) ?
 						(POLLIN|POLLPRI) : POLLOUT, has_timeout ? &left_time : NULL);
